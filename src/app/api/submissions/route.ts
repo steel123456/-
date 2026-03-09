@@ -1,38 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { getSubmissions, createSubmission } from "@/lib/db";
 
-// 获取提交记录
 export async function GET(request: NextRequest) {
   try {
-    const client = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const assignmentId = searchParams.get("assignmentId");
     const studentId = searchParams.get("studentId");
 
-    let query = client
-      .from("submissions")
-      .select("*")
-      .order("submitted_at", { ascending: false });
+    const filters: any = {};
+    if (assignmentId) filters.assignment_id = assignmentId;
+    if (studentId) filters.student_id = studentId;
 
-    if (assignmentId) {
-      query = query.eq("assignment_id", assignmentId);
-    }
+    const submissions = await getSubmissions(filters);
 
-    if (studentId) {
-      query = query.eq("student_id", studentId);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("获取提交记录失败:", error);
-      return NextResponse.json(
-        { error: "获取提交记录失败" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ submissions: data });
+    return NextResponse.json({ submissions });
   } catch (error) {
     console.error("获取提交记录错误:", error);
     return NextResponse.json(
@@ -42,7 +23,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// 提交作业
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -76,46 +56,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = getSupabaseClient();
-
-    // 检查是否已经提交过
-    const { data: existing } = await client
-      .from("submissions")
-      .select("id")
-      .eq("assignment_id", assignmentId)
-      .eq("student_id", studentId)
-      .single();
-
-    if (existing) {
-      return NextResponse.json(
-        { error: "您已经提交过该作业" },
-        { status: 400 }
-      );
-    }
-
-    const { data, error } = await client
-      .from("submissions")
-      .insert({
+    try {
+      const submission = await createSubmission({
         assignment_id: assignmentId,
         student_id: studentId,
         student_name: studentName,
         content_type: contentType,
-        content: content || null,
-        file_key: fileKey || null,
-        status: "pending",
-      })
-      .select()
-      .single();
+        content: content || undefined,
+        file_key: fileKey || undefined,
+      });
 
-    if (error) {
-      console.error("提交作业失败:", error);
+      return NextResponse.json({ submission });
+    } catch (err: any) {
       return NextResponse.json(
-        { error: "提交作业失败" },
-        { status: 500 }
+        { error: err.message || "提交失败" },
+        { status: 400 }
       );
     }
-
-    return NextResponse.json({ submission: data });
   } catch (error) {
     console.error("提交作业错误:", error);
     return NextResponse.json(

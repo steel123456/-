@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { getUserById } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,15 +12,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const client = getSupabaseClient();
+    const user = await getUserById(userId);
 
-    const { data: user, error } = await client
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-
-    if (error || !user) {
+    if (!user) {
       return NextResponse.json(
         { error: "用户不存在" },
         { status: 404 }

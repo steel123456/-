@@ -14,10 +14,10 @@ export async function GET(request: NextRequest) {
     }
 
     const storage = new S3Storage({
-      endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+      endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL || "",
       accessKey: "",
       secretKey: "",
-      bucketName: process.env.COZE_BUCKET_NAME,
+      bucketName: process.env.COZE_BUCKET_NAME || "",
       region: "cn-beijing",
     });
 

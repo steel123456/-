@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { getUserByEmail } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,25 +12,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = getSupabaseClient();
+    const user = await getUserByEmail(email);
 
-    // 查询用户
-    const { data: user, error } = await client
-      .from("profiles")
-      .select("*")
-      .eq("email", email)
-      .single();
-
-    if (error || !user) {
+    if (!user) {
       return NextResponse.json(
         { error: "邮箱或密码错误" },
         { status: 401 }
       );
     }
-
-    // 简化的密码验证（实际项目中应该使用加密）
-    // 这里我们使用邮箱作为简化验证
-    // 在生产环境中应该使用 Supabase Auth 或其他认证方案
 
     return NextResponse.json({
       success: true,

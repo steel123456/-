@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { getAssignmentById } from "@/lib/db";
 
 export async function GET(
   request: NextRequest,
@@ -7,23 +7,16 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const client = getSupabaseClient();
+    const assignment = await getAssignmentById(id);
 
-    const { data, error } = await client
-      .from("assignments")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error) {
-      console.error("获取作业详情失败:", error);
+    if (!assignment) {
       return NextResponse.json(
         { error: "作业不存在" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ assignment: data });
+    return NextResponse.json({ assignment });
   } catch (error) {
     console.error("获取作业详情错误:", error);
     return NextResponse.json(

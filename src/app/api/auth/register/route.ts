@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { createUser, getUserByEmail } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,15 +19,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = getSupabaseClient();
-
-    // 检查邮箱是否已存在
-    const { data: existingUser } = await client
-      .from("profiles")
-      .select("id")
-      .eq("email", email)
-      .single();
-
+    const existingUser = await getUserByEmail(email);
     if (existingUser) {
       return NextResponse.json(
         { error: "该邮箱已被注册" },
@@ -35,25 +27,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 创建用户
-    const { data: user, error } = await client
-      .from("profiles")
-      .insert({
-        email,
-        name,
-        role,
-        class_name: className || null,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("注册失败:", error);
-      return NextResponse.json(
-        { error: "注册失败，请稍后重试" },
-        { status: 500 }
-      );
-    }
+    const user = await createUser({
+      email,
+      name,
+      role,
+      class_name: className || undefined,
+    });
 
     return NextResponse.json({
       success: true,
@@ -65,10 +44,10 @@ export async function POST(request: NextRequest) {
         className: user.class_name,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("注册错误:", error);
     return NextResponse.json(
-      { error: "服务器错误，请稍后重试" },
+      { error: error.message || "注册失败，请稍后重试" },
       { status: 500 }
     );
   }
