@@ -1,12 +1,28 @@
 import { Redis } from "@upstash/redis";
 
+// 检查是否配置了 Redis
+function hasRedisConfig(): boolean {
+  return !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+}
+
 // 初始化 Redis 客户端
 function getRedis() {
   return new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL || "",
-    token: process.env.UPSTASH_REDIS_REST_TOKEN || "",
+    url: process.env.UPSTASH_REDIS_REST_URL || "https://example.upstash.io",
+    token: process.env.UPSTASH_REDIS_REST_TOKEN || "example-token",
   });
 }
+
+// 内存存储（作为 fallback）
+let memoryStore: {
+  users: any[];
+  assignments: any[];
+  submissions: any[];
+} = {
+  users: [],
+  assignments: [],
+  submissions: [],
+};
 
 // 生成 UUID
 function generateId(): string {
@@ -30,6 +46,9 @@ export interface User {
 }
 
 export async function getUsers(): Promise<User[]> {
+  if (!hasRedisConfig()) {
+    return memoryStore.users;
+  }
   const redis = getRedis();
   const users = await redis.get<User[]>("users");
   return users || [];
@@ -67,8 +86,14 @@ export async function createUser(data: {
   };
   
   users.push(user);
-  const redis = getRedis();
-  await redis.set("users", users);
+  
+  if (hasRedisConfig()) {
+    const redis = getRedis();
+    await redis.set("users", users);
+  } else {
+    memoryStore.users = users;
+  }
+  
   return user;
 }
 
@@ -78,8 +103,14 @@ export async function updateUser(id: string, data: Partial<User>): Promise<User 
   if (index === -1) return null;
   
   users[index] = { ...users[index], ...data };
-  const redis = getRedis();
-  await redis.set("users", users);
+  
+  if (hasRedisConfig()) {
+    const redis = getRedis();
+    await redis.set("users", users);
+  } else {
+    memoryStore.users = users;
+  }
+  
   return users[index];
 }
 
@@ -101,8 +132,14 @@ export interface Assignment {
 }
 
 export async function getAssignments(filters?: { teacher_id?: string; status?: string }): Promise<Assignment[]> {
-  const redis = getRedis();
-  const assignments = (await redis.get<Assignment[]>("assignments")) || [];
+  let assignments: Assignment[];
+  
+  if (!hasRedisConfig()) {
+    assignments = memoryStore.assignments;
+  } else {
+    const redis = getRedis();
+    assignments = (await redis.get<Assignment[]>("assignments")) || [];
+  }
   
   let result = assignments;
   if (filters?.teacher_id) {
@@ -147,19 +184,39 @@ export async function createAssignment(data: {
   };
   
   assignments.push(assignment);
-  const redis = getRedis();
-  await redis.set("assignments", assignments);
+  
+  if (hasRedisConfig()) {
+    const redis = getRedis();
+    await redis.set("assignments", assignments);
+  } else {
+    memoryStore.assignments = assignments;
+  }
+  
   return assignment;
 }
 
 export async function updateAssignment(id: string, data: Partial<Assignment>): Promise<Assignment | null> {
-  const redis = getRedis();
-  const assignments = (await redis.get<Assignment[]>("assignments")) || [];
+  let assignments: Assignment[];
+  
+  if (!hasRedisConfig()) {
+    assignments = memoryStore.assignments;
+  } else {
+    const redis = getRedis();
+    assignments = (await redis.get<Assignment[]>("assignments")) || [];
+  }
+  
   const index = assignments.findIndex((a) => a.id === id);
   if (index === -1) return null;
   
   assignments[index] = { ...assignments[index], ...data };
-  await redis.set("assignments", assignments);
+  
+  if (hasRedisConfig()) {
+    const redis = getRedis();
+    await redis.set("assignments", assignments);
+  } else {
+    memoryStore.assignments = assignments;
+  }
+  
   return assignments[index];
 }
 
@@ -185,8 +242,14 @@ export async function getSubmissions(filters?: {
   assignment_id?: string;
   student_id?: string;
 }): Promise<Submission[]> {
-  const redis = getRedis();
-  const submissions = (await redis.get<Submission[]>("submissions")) || [];
+  let submissions: Submission[];
+  
+  if (!hasRedisConfig()) {
+    submissions = memoryStore.submissions;
+  } else {
+    const redis = getRedis();
+    submissions = (await redis.get<Submission[]>("submissions")) || [];
+  }
   
   let result = submissions;
   if (filters?.assignment_id) {
@@ -214,8 +277,14 @@ export async function createSubmission(data: {
   content?: string;
   file_key?: string;
 }): Promise<Submission> {
-  const redis = getRedis();
-  const submissions = (await redis.get<Submission[]>("submissions")) || [];
+  let submissions: Submission[];
+  
+  if (!hasRedisConfig()) {
+    submissions = memoryStore.submissions;
+  } else {
+    const redis = getRedis();
+    submissions = (await redis.get<Submission[]>("submissions")) || [];
+  }
   
   const existing = submissions.find(
     (s) => s.assignment_id === data.assignment_id && s.student_id === data.student_id
@@ -239,26 +308,44 @@ export async function createSubmission(data: {
   };
   
   submissions.push(submission);
-  await redis.set("submissions", submissions);
   
-  // 更新作业统计
+  if (hasRedisConfig()) {
+    const redis = getRedis();
+    await redis.set("submissions", submissions);
+  } else {
+    memoryStore.submissions = submissions;
+  }
+  
   await updateAssignmentStats(data.assignment_id);
   
   return submission;
 }
 
 export async function updateSubmission(id: string, data: Partial<Submission>): Promise<Submission | null> {
-  const redis = getRedis();
-  const submissions = (await redis.get<Submission[]>("submissions")) || [];
+  let submissions: Submission[];
+  
+  if (!hasRedisConfig()) {
+    submissions = memoryStore.submissions;
+  } else {
+    const redis = getRedis();
+    submissions = (await redis.get<Submission[]>("submissions")) || [];
+  }
+  
   const index = submissions.findIndex((s) => s.id === id);
   if (index === -1) return null;
   
   submissions[index] = { ...submissions[index], ...data };
-  await redis.set("submissions", submissions);
+  
+  if (hasRedisConfig()) {
+    const redis = getRedis();
+    await redis.set("submissions", submissions);
+  } else {
+    memoryStore.submissions = submissions;
+  }
+  
   return submissions[index];
 }
 
-// 更新作业统计
 async function updateAssignmentStats(assignmentId: string): Promise<void> {
   const submissions = await getSubmissions({ assignment_id: assignmentId });
   const gradedSubmissions = submissions.filter((s) => s.status === "graded");
